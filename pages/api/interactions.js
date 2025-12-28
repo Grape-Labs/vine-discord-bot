@@ -1,6 +1,6 @@
 const { verifyKey, InteractionType, InteractionResponseType } = require("discord-interactions");
 
-// Standard helper for Next.js to get Raw Body
+// Helper to read the stream into a Buffer
 async function getRawBody(readable) {
   const chunks = [];
   for await (const chunk of readable) {
@@ -10,19 +10,18 @@ async function getRawBody(readable) {
 }
 
 module.exports = async function handler(req, res) {
-  // 1. Only allow POST
+  // 1. Only POST is required for Discord Interactions
   if (req.method !== "POST") {
     return res.status(405).send("Method Not Allowed");
   }
 
-  // 2. Extract headers
   const signature = req.headers["x-signature-ed25519"];
   const timestamp = req.headers["x-signature-timestamp"];
   
-  // 3. Get Raw Body (Crucial for verification)
+  // 2. Get the Raw Body (Crucial for cryptographic verification)
   const rawBody = await getRawBody(req);
 
-  // 4. Verify Signature
+  // 3. Verify the signature
   const isValidRequest = verifyKey(
     rawBody,
     signature,
@@ -31,28 +30,33 @@ module.exports = async function handler(req, res) {
   );
 
   if (!isValidRequest) {
-    console.error("Invalid Request Signature");
-    return res.status(401).send("Bad request signature");
+    return res.status(401).send("Invalid request signature");
   }
 
-  // 5. Parse Body
+  // 4. Parse the body
   const interaction = JSON.parse(rawBody.toString());
 
-  // 6. Handle PING (This fixes the Developer Portal error)
+  // 5. Handle PING (This is what the Developer Portal checks)
   if (interaction.type === InteractionType.PING) {
     return res.status(200).json({
       type: InteractionResponseType.PONG,
     });
   }
 
-  // 7. Handle actual commands
-  return res.status(200).json({
-    type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
-    data: { content: "Interaction received!" },
-  });
+  // 6. Handle actual interactions (Commands, Buttons, etc.)
+  if (interaction.type === InteractionType.APPLICATION_COMMAND) {
+    return res.status(200).json({
+      type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
+      data: {
+        content: "Hello! Interaction verified successfully.",
+      },
+    });
+  }
+
+  return res.status(400).json({ error: "Unknown interaction type" });
 };
 
-// Essential: Disable the automatic parser
+// 7. DISABLE the default body parser
 export const config = {
   api: {
     bodyParser: false,
