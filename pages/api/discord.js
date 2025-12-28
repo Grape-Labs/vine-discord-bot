@@ -8,11 +8,12 @@ try {
   // KV not installed or not configured yet; ok for local testing
 }
 
+/*
 exports.config = {
   api: {
     bodyParser: false, // IMPORTANT: must read raw body
   },
-};
+};*/
 
 function readRawBody(req) {
   return new Promise((resolve, reject) => {
@@ -100,5 +101,9 @@ async function handler(req, res) {
 
   return json(res, 200, { type: 4, data: { content: "Unknown command." } });
 }
+
+handler.config = {
+  api: { bodyParser: false },
+};
 
 module.exports = handler;
