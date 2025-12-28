@@ -89,12 +89,20 @@ async function handlePointsCommand(interaction, res) {
 }
 
 async function handler(req, res) {
+    if (req.method === "HEAD") {
+      res.statusCode = 204;
+      return res.end();
+    }
+
+    if (req.method !== "POST") {
+      res.statusCode = 405;
+      res.setHeader("Allow", "POST");
+      return res.end("Method Not Allowed");
+    }
+  
   // Discord will POST. Browser GET should just confirm route is live.
   if (req.method === "GET") {
     return sendJson(res, 200, { ok: true, route: "/api/discord" });
-  }
-  if (req.method !== "POST") {
-    return sendJson(res, 405, { error: "Method not allowed" });
   }
 
   // Read raw bytes (critical)
