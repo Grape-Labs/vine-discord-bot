@@ -17,9 +17,9 @@ exports.config = {
 
 function readRawBody(req) {
   return new Promise((resolve, reject) => {
-    let data = "";
-    req.on("data", (chunk) => (data += chunk));
-    req.on("end", () => resolve(data));
+    const chunks = [];
+    req.on("data", (chunk) => chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)));
+    req.on("end", () => resolve(Buffer.concat(chunks)));
     req.on("error", reject);
   });
 }
@@ -51,11 +51,15 @@ async function getPoints(guildId, userId) {
 async function handler(req, res) {
   if (req.method !== "POST") return json(res, 405, { error: "Method not allowed" });
 
-  const rawBody = await readRawBody(req);
+  const rawBodyBuf = await readRawBody(req);
+  const rawBody = rawBodyBuf.toString("utf8");
 
   const signature = req.headers["x-signature-ed25519"];
   const timestamp = req.headers["x-signature-timestamp"];
   const publicKey = process.env.DISCORD_PUBLIC_KEY;
+
+  if (!publicKey) return json(res, 500, { error: "Missing DISCORD_PUBLIC_KEY" });
+  if (!sig || !ts) return json(res, 401, { error: "Missing signature headers" });
 
  const sig = Array.isArray(signature) ? signature[0] : signature;
   const ts  = Array.isArray(timestamp) ? timestamp[0] : timestamp;
