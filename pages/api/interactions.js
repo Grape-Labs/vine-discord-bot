@@ -1,6 +1,6 @@
-const { verifyKey, InteractionType, InteractionResponseType } = require("discord-interactions");
+import { verifyKey, InteractionType, InteractionResponseType } from "discord-interactions";
 
-// Helper to read the stream into a Buffer
+// Helper to read the stream into a Buffer for ESM
 async function getRawBody(readable) {
   const chunks = [];
   for await (const chunk of readable) {
@@ -9,7 +9,7 @@ async function getRawBody(readable) {
   return Buffer.concat(chunks);
 }
 
-module.exports = async function handler(req, res) {
+export default async function handler(req, res) {
   // 1. Only POST is required for Discord Interactions
   if (req.method !== "POST") {
     return res.status(405).send("Method Not Allowed");
@@ -18,7 +18,7 @@ module.exports = async function handler(req, res) {
   const signature = req.headers["x-signature-ed25519"];
   const timestamp = req.headers["x-signature-timestamp"];
   
-  // 2. Get the Raw Body (Crucial for cryptographic verification)
+  // 2. Get the Raw Body
   const rawBody = await getRawBody(req);
 
   // 3. Verify the signature
@@ -36,27 +36,27 @@ module.exports = async function handler(req, res) {
   // 4. Parse the body
   const interaction = JSON.parse(rawBody.toString());
 
-  // 5. Handle PING (This is what the Developer Portal checks)
+  // 5. Handle PING (Critical for Discord Portal verification)
   if (interaction.type === InteractionType.PING) {
     return res.status(200).json({
       type: InteractionResponseType.PONG,
     });
   }
 
-  // 6. Handle actual interactions (Commands, Buttons, etc.)
+  // 6. Handle actual interactions
   if (interaction.type === InteractionType.APPLICATION_COMMAND) {
     return res.status(200).json({
       type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
       data: {
-        content: "Hello! Interaction verified successfully.",
+        content: "Success! ESM interaction verified.",
       },
     });
   }
 
   return res.status(400).json({ error: "Unknown interaction type" });
-};
+}
 
-// 7. DISABLE the default body parser
+// 7. Disable the default body parser (MUST use 'export' here)
 export const config = {
   api: {
     bodyParser: false,
