@@ -86,6 +86,7 @@ module.exports = async function handler(req, res) {
 
   // ✅ Verification requires this exact response
   if (interaction.type === 1) {
+    console.log("PING host:", req.headers.host, "url:", req.url);
     console.log("DISCORD PING VERIFIED FOR APP:", process.env.DISCORD_APP_ID);
     console.log("DISCORD PING VERIFIED FOR PK:", process.env.DISCORD_PUBLIC_KEY);
     const body = '{"type":1}';
@@ -96,6 +97,7 @@ module.exports = async function handler(req, res) {
     res.setHeader("Connection", "close");
     res.setHeader("Content-Encoding", "identity");
 
+    console.log("PONG bytes:", Buffer.byteLength(body), "body:", body);
     return res.end(body);
   }
 
