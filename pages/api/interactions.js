@@ -42,7 +42,8 @@ module.exports = async function handler(req, res) {
   }
 
   // MUST verify signature using the RAW request body bytes
-  const ok = verifyKey(raw, sig1, ts1, publicKey); // Pass 'raw' Buffer instead of 'rawText'
+  const raw = await readRawBody(req);
+  const rawText = raw.toString("utf8");
 
   const publicKey = process.env.DISCORD_PUBLIC_KEY;
 
@@ -65,6 +66,7 @@ module.exports = async function handler(req, res) {
     return res.end(JSON.stringify({ error: "Missing signature headers" }));
   }
 
+  const ok = verifyKey(raw, sig1, ts1, publicKey);
   if (!ok) {
     res.statusCode = 401;
     res.setHeader("Content-Type", "application/json; charset=utf-8");
