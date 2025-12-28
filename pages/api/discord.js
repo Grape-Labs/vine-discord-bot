@@ -6,7 +6,7 @@ let kv = null;
 try {
   kv = require("@vercel/kv").kv;
 } catch (e) {
-  // ok if KV not installed/configured yet
+  // KV not installed/configured yet — bot will still work (non-persistent)
 }
 
 function readRawBody(req) {
@@ -23,6 +23,7 @@ function readRawBody(req) {
 function sendJson(res, status, body) {
   res.statusCode = status;
   res.setHeader("Content-Type", "application/json");
+  res.setHeader("Cache-Control", "no-store");
   res.end(JSON.stringify(body));
 }
 
@@ -44,104 +45,111 @@ async function getPoints(guildId, userId) {
   return (await kv.get(pointsKey(guildId, userId))) ?? 0;
 }
 
-async function handleCommand(interaction, res) {
+async function handlePointsCommand(interaction, res) {
   const guildId = interaction.guild_id;
-  const command = interaction.data?.name;
+  const sub = interaction.data?.options?.[0];
+  const subName = sub?.name;
 
-  if (command === "points") {
-    const sub = interaction.data.options?.[0]; // add|balance
-    const subName = sub?.name;
+  if (subName === "add") {
+    const opts = sub.options ?? [];
+    const user = opts.find((o) => o.name === "user")?.value;
+    const amount = opts.find((o) => o.name === "amount")?.value;
+    const reason = opts.find((o) => o.name === "reason")?.value ?? "";
 
-    if (subName === "add") {
-      const opts = sub.options ?? [];
-      const user = opts.find((o) => o.name === "user")?.value;
-      const amount = opts.find((o) => o.name === "amount")?.value;
-      const reason = opts.find((o) => o.name === "reason")?.value ?? "";
+    const next = await addPoints(guildId, user, amount);
 
-      const next = await addPoints(guildId, user, amount);
-
-      return sendJson(res, 200, {
-        type: 4,
-        data: {
-          content: `✅ Added **${amount}** point(s) to <@${user}>. New balance: **${next}**.${
-            reason ? `\nReason: ${reason}` : ""
-          }`,
-        },
-      });
-    }
-
-    if (subName === "balance") {
-      const opts = sub.options ?? [];
-      const user =
-        opts.find((o) => o.name === "user")?.value ??
-        interaction.member?.user?.id;
-      const bal = await getPoints(guildId, user);
-
-      return sendJson(res, 200, {
-        type: 4,
-        data: { content: `💳 <@${user}> has **${bal}** point(s).` },
-      });
-    }
+    return sendJson(res, 200, {
+      type: 4,
+      data: {
+        content: `✅ Added **${amount}** point(s) to <@${user}>. New balance: **${next}**.${
+          reason ? `\nReason: ${reason}` : ""
+        }`,
+      },
+    });
   }
 
-  return sendJson(res, 200, { type: 4, data: { content: "Unknown command." } });
+  if (subName === "balance") {
+    const opts = sub.options ?? [];
+    const user =
+      opts.find((o) => o.name === "user")?.value ??
+      interaction.member?.user?.id;
+
+    const bal = await getPoints(guildId, user);
+
+    return sendJson(res, 200, {
+      type: 4,
+      data: { content: `💳 <@${user}> has **${bal}** point(s).` },
+    });
+  }
+
+  return sendJson(res, 200, {
+    type: 4,
+    data: { content: "Unknown points subcommand." },
+  });
 }
 
 async function handler(req, res) {
-  // Temporary: confirm the deployed version via browser
+  // Discord will POST. Browser GET should just confirm route is live.
   if (req.method === "GET") {
-    return sendJson(res, 200, { ok: true, version: "v2-2025-12-28" });
+    return sendJson(res, 200, { ok: true, route: "/api/discord" });
+  }
+  if (req.method !== "POST") {
+    return sendJson(res, 405, { error: "Method not allowed" });
   }
 
-  if (req.method !== "POST")
-    return sendJson(res, 405, { error: "Method not allowed" });
-
-  // Read raw bytes (critical for signature verification)
+  // Read raw bytes (critical)
   const rawBodyBuf = await readRawBody(req);
   const rawBody = rawBodyBuf.toString("utf8");
 
-  // Normalize headers (Vercel can provide string[])
+  // Normalize headers (string|string[])
   const signature = req.headers["x-signature-ed25519"];
   const timestamp = req.headers["x-signature-timestamp"];
   const sig = Array.isArray(signature) ? signature[0] : signature;
   const ts = Array.isArray(timestamp) ? timestamp[0] : timestamp;
 
   const publicKey = process.env.DISCORD_PUBLIC_KEY;
-  if (!publicKey) return sendJson(res, 500, { error: "Missing DISCORD_PUBLIC_KEY" });
-  if (!sig || !ts) return sendJson(res, 401, { error: "Missing signature headers" });
 
-  // Verify Discord signature
+  // Basic guard rails
+  if (!publicKey) return sendJson(res, 500, { error: "Missing DISCORD_PUBLIC_KEY" });
+  if (!sig || !ts) return sendJson(res, 401, { error: "Missing Discord signature headers" });
+
+  // Verify signature
   const isValid = verifyKey(rawBody, sig, ts, publicKey);
   if (!isValid) return sendJson(res, 401, { error: "Invalid request signature" });
 
-  const interaction = JSON.parse(rawBody);
-
-  // ✅ Debug logs to see exactly what Discord is sending + what we respond with
-  console.log("Discord interaction received", {
-    type: interaction.type,
-    name: interaction.data?.name,
-  });
-
-  // Respond to PING immediately (Discord endpoint verification)
-  if (interaction.type === 1) {
-    const pong = { type: 1 };
-    console.log("Responding to PING with:", pong);
-
-    // TEMP (most strict possible response): uncomment if needed
-    // res.statusCode = 200;
-    // res.setHeader("Content-Type", "application/json");
-    // return res.end('{"type":1}');
-
-    return sendJson(res, 200, pong);
+  // Parse interaction
+  let interaction;
+  try {
+    interaction = JSON.parse(rawBody);
+  } catch (e) {
+    return sendJson(res, 400, { error: "Invalid JSON" });
   }
 
-  // Handle commands
-  return handleCommand(interaction, res);
+  // ✅ PING: return the most literal response possible
+  if (interaction.type === 1) {
+    console.log("Discord PING verified -> responding with raw pong");
+    res.statusCode = 200;
+    res.setHeader("Content-Type", "application/json");
+    res.setHeader("Cache-Control", "no-store");
+    return res.end('{"type":1}');
+  }
+
+  // Commands
+  const command = interaction.data?.name;
+
+  if (command === "points") {
+    return handlePointsCommand(interaction, res);
+  }
+
+  return sendJson(res, 200, {
+    type: 4,
+    data: { content: "Unknown command." },
+  });
 }
 
 module.exports = handler;
 
-// IMPORTANT: disable body parser so we can verify raw body
+// IMPORTANT: disable body parser so signature verification uses the true raw body
 module.exports.config = {
   api: { bodyParser: false },
 };
