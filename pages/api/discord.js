@@ -102,8 +102,7 @@ async function handler(req, res) {
   return json(res, 200, { type: 4, data: { content: "Unknown command." } });
 }
 
-handler.config = {
+module.exports = handler;
+module.exports.config = {
   api: { bodyParser: false },
 };
-
-module.exports = handler;
