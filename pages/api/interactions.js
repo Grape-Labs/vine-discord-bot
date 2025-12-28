@@ -2,6 +2,23 @@
 const { verifyKey } = require("discord-interactions");
 const { handleSlashCommand } = require("../../lib/discord/commands");
 
+let kv = null;
+
+async function getKV() {
+  if (kv) return kv;
+  try {
+    const mod = require("@vercel/kv");
+    kv = mod.kv;
+    // Touch it once to ensure env is present
+    // (If env missing, this will throw and we fall back)
+    await kv.ping?.();
+    return kv;
+  } catch (e) {
+    kv = null;
+    return null;
+  }
+}
+
 async function getRawBody(readable) {
   const chunks = [];
   for await (const chunk of readable) {
