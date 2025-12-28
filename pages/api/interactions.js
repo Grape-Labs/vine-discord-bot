@@ -4,47 +4,69 @@ const { verifyKey } = require("discord-interactions");
 async function getRawBody(readable) {
   const chunks = [];
   for await (const chunk of readable) {
-    chunks.push(typeof chunk === 'string' ? Buffer.from(chunk) : chunk);
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
   }
   return Buffer.concat(chunks);
 }
 
 module.exports = async (req, res) => {
-  if (req.method !== "POST") return res.status(405).end();
+  if (req.method !== "POST") {
+    res.statusCode = 405;
+    return res.end();
+  }
 
   const signature = req.headers["x-signature-ed25519"];
   const timestamp = req.headers["x-signature-timestamp"];
-  
-  // 1. Get the raw body as a BUFFER
+  const publicKey = process.env.DISCORD_PUBLIC_KEY;
+
   const rawBody = await getRawBody(req);
 
-  // 2. Verify Key is SYNCHRONOUS. Do not await it.
-  // Ensure process.env.DISCORD_PUBLIC_KEY is a string.
-  const isValidRequest = verifyKey(
-    rawBody, 
-    signature, 
-    timestamp, 
-    process.env.DISCORD_PUBLIC_KEY
+  if (!signature || !timestamp) {
+    res.statusCode = 401;
+    return res.end("Missing signature headers");
+  }
+  if (!publicKey) {
+    res.statusCode = 500;
+    return res.end("Missing DISCORD_PUBLIC_KEY");
+  }
+
+  // ✅ In your environment verifyKey is async -> await it
+  const isValidRequest = await verifyKey(
+    rawBody,            // Buffer is fine
+    signature,
+    timestamp,
+    publicKey
   );
 
   console.log("Verification Result:", isValidRequest);
 
   if (!isValidRequest) {
-    console.error("Verification failed for signature:", signature);
-    return res.status(401).send("Invalid request signature");
+    res.statusCode = 401;
+    return res.end("Invalid request signature");
   }
 
-  // 3. Only parse after successful verification
-  const interaction = JSON.parse(rawBody.toString());
+  const interaction = JSON.parse(rawBody.toString("utf8"));
 
+  // ✅ Respond to PING exactly
   if (interaction.type === 1) {
-    return res.status(200).json({ type: 1 });
+    const body = '{"type":1}';
+    res.statusCode = 200;
+    res.setHeader("Content-Type", "application/json");
+    res.setHeader("Content-Length", String(Buffer.byteLength(body)));
+    res.setHeader("Cache-Control", "no-store");
+    return res.end(body);
   }
 
-  return res.status(200).json({
+  const body = JSON.stringify({
     type: 4,
-    data: { content: "Interaction verified and processed." }
+    data: { content: "Interaction verified and processed." },
   });
+
+  res.statusCode = 200;
+  res.setHeader("Content-Type", "application/json");
+  res.setHeader("Content-Length", String(Buffer.byteLength(body)));
+  res.setHeader("Cache-Control", "no-store");
+  return res.end(body);
 };
 
 module.exports.config = {
