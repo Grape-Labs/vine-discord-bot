@@ -12,22 +12,51 @@ function readRawBody(req) {
   });
 }
 
-function sendJson(res, status, body) {
-  const text = JSON.stringify(body);
+function setNoStore(res) {
+  res.setHeader("Cache-Control", "no-store");
+}
+
+function sendText(res, status, text) {
+  res.statusCode = status;
+  res.setHeader("Content-Type", "text/plain; charset=utf-8");
+  setNoStore(res);
+  return res.end(text || "");
+}
+
+function sendJson(res, status, obj) {
+  const body = JSON.stringify(obj);
   res.statusCode = status;
   res.setHeader("Content-Type", "application/json; charset=utf-8");
-  res.setHeader("Content-Length", Buffer.byteLength(text));
-  res.setHeader("Cache-Control", "no-store");
-  res.end(text);
+  res.setHeader("Content-Length", Buffer.byteLength(body));
+  setNoStore(res);
+  return res.end(body);
 }
 
 module.exports = async function handler(req, res) {
-  // ONLY POST is valid for Discord interaction verification
+  const ua = req.headers["user-agent"] || "";
+
+  // ✅ Discord/portal often probes with HEAD/GET first
+  if (req.method === "HEAD") {
+    res.statusCode = 200;
+    setNoStore(res);
+    return res.end();
+  }
+
+  if (req.method === "GET") {
+    return sendText(res, 200, "ok");
+  }
+
+  if (req.method === "OPTIONS") {
+    res.statusCode = 204;
+    res.setHeader("Allow", "POST, GET, HEAD, OPTIONS");
+    setNoStore(res);
+    return res.end();
+  }
+
+  // ✅ Actual Discord verification is POST
   if (req.method !== "POST") {
-    res.statusCode = 405;
-    res.setHeader("Allow", "POST");
-    res.setHeader("Cache-Control", "no-store");
-    return res.end("Method Not Allowed");
+    res.setHeader("Allow", "POST, GET, HEAD, OPTIONS");
+    return sendText(res, 405, "Method Not Allowed");
   }
 
   const rawBodyBuf = await readRawBody(req);
@@ -37,28 +66,28 @@ module.exports = async function handler(req, res) {
   const ts = req.headers["x-signature-timestamp"];
   const publicKey = process.env.DISCORD_PUBLIC_KEY;
 
-  if (!sig || !ts) return sendJson(res, 401, { error: "Missing signature headers" });
   if (!publicKey) return sendJson(res, 500, { error: "Missing DISCORD_PUBLIC_KEY" });
+  if (!sig || !ts) return sendJson(res, 401, { error: "Missing signature" });
 
-  const isValid = verifyKey(rawBody, sig, ts, publicKey);
-  if (!isValid) return sendJson(res, 401, { error: "Invalid request signature" });
+  const ok = verifyKey(rawBody, sig, ts, publicKey);
+  if (!ok) return sendJson(res, 401, { error: "Invalid signature" });
 
   let interaction;
   try {
     interaction = JSON.parse(rawBody);
-  } catch (e) {
+  } catch {
     return sendJson(res, 400, { error: "Invalid JSON" });
   }
 
-  // ✅ Discord verification: reply with strict {"type":1}
+  // ✅ PING -> strict PONG
   if (interaction.type === 1) {
     res.statusCode = 200;
     res.setHeader("Content-Type", "application/json; charset=utf-8");
-    res.setHeader("Cache-Control", "no-store");
+    setNoStore(res);
     return res.end('{"type":1}');
   }
 
-  // Acknowledge other interactions for now
+  // Temporary ack for anything else
   return sendJson(res, 200, { type: 4, data: { content: "ok" } });
 };
 
