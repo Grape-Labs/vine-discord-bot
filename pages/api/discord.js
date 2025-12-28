@@ -82,7 +82,11 @@ async function handleCommand(interaction, res) {
 }
 
 async function handler(req, res) {
+  if (req.method === "GET") {
+    return sendJson(res, 200, { ok: true, version: "v2-2025-12-28" });
+  }
   if (req.method !== "POST") return sendJson(res, 405, { error: "Method not allowed" });
+
 
   // Read raw bytes (critical for signature verification)
   const rawBodyBuf = await readRawBody(req);
