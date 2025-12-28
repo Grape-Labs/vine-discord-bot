@@ -10,7 +10,7 @@ async function getRawBody(readable) {
 }
 
 module.exports = async (req, res) => {
-  if (req.method !== "POST") return res.status(405).send("Method Not Allowed");
+  if (req.method !== "POST") return res.status(405).end();
 
   const signature = req.headers["x-signature-ed25519"];
   const timestamp = req.headers["x-signature-timestamp"];
@@ -23,26 +23,23 @@ module.exports = async (req, res) => {
     process.env.DISCORD_PUBLIC_KEY
   );
 
+  console.log("Verification Result:", isValidRequest);
+
   if (!isValidRequest) {
-    return res.status(401).send("Invalid request signature");
+    return res.status(401).end("invalid request signature");
   }
 
-  const interaction = JSON.parse(rawBody.toString("utf-8"));
+  const interaction = JSON.parse(rawBody.toString());
 
   if (interaction.type === 1) {
-    // We send a raw string to prevent any automatic formatting
-    res.setHeader("Content-Type", "application/json");
-    return res.status(200).send(JSON.stringify({ type: 1 }));
+    // Return EXACTLY what Discord wants with no extra whitespace
+    return res.status(200).json({ type: 1 });
   }
 
-  if (interaction.type === 2) {
-    return res.status(200).json({
-      type: 4,
-      data: { content: "Interaction verified!" },
-    });
-  }
-
-  return res.status(400).json({ error: "Unknown type" });
+  return res.status(200).json({
+    type: 4,
+    data: { content: "Verified" }
+  });
 };
 
 module.exports.config = {
