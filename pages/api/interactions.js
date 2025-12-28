@@ -22,7 +22,7 @@ function sendJson(res, status, body) {
 }
 
 module.exports = async function handler(req, res) {
-  // Discord verification is POST
+  // ONLY POST is valid for Discord interaction verification
   if (req.method !== "POST") {
     res.statusCode = 405;
     res.setHeader("Allow", "POST");
@@ -37,29 +37,28 @@ module.exports = async function handler(req, res) {
   const ts = req.headers["x-signature-timestamp"];
   const publicKey = process.env.DISCORD_PUBLIC_KEY;
 
-  if (!sig || !ts) return sendJson(res, 401, { error: "Missing signature" });
-  if (!publicKey) return sendJson(res, 500, { error: "Missing public key" });
+  if (!sig || !ts) return sendJson(res, 401, { error: "Missing signature headers" });
+  if (!publicKey) return sendJson(res, 500, { error: "Missing DISCORD_PUBLIC_KEY" });
 
   const isValid = verifyKey(rawBody, sig, ts, publicKey);
-  if (!isValid) return sendJson(res, 401, { error: "Bad signature" });
+  if (!isValid) return sendJson(res, 401, { error: "Invalid request signature" });
 
   let interaction;
   try {
     interaction = JSON.parse(rawBody);
   } catch (e) {
-    return sendJson(res, 400, { error: "Bad JSON" });
+    return sendJson(res, 400, { error: "Invalid JSON" });
   }
 
-  // The ONLY thing Discord needs to verify the URL:
+  // ✅ Discord verification: reply with strict {"type":1}
   if (interaction.type === 1) {
-    // respond with strict JSON PONG
     res.statusCode = 200;
     res.setHeader("Content-Type", "application/json; charset=utf-8");
     res.setHeader("Cache-Control", "no-store");
     return res.end('{"type":1}');
   }
 
-  // For now, just acknowledge anything else while we verify saving works
+  // Acknowledge other interactions for now
   return sendJson(res, 200, { type: 4, data: { content: "ok" } });
 };
 
