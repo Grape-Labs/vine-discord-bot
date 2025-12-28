@@ -1,7 +1,7 @@
 // pages/api/interactions.js
-const { verifyKey, InteractionType, InteractionResponseType } = require("discord-interactions");
+const { verifyKey } = require("discord-interactions");
 
-// Helper to read the raw body as a Buffer
+// Helper: Read raw body for signature verification
 async function getRawBody(readable) {
   const chunks = [];
   for await (const chunk of readable) {
@@ -11,20 +11,16 @@ async function getRawBody(readable) {
 }
 
 const handler = async (req, res) => {
-  // 1. Only allow POST requests
+  // 1. Check method
   if (req.method !== "POST") {
     return res.status(405).send("Method Not Allowed");
   }
 
-  // 2. Extract headers
+  // 2. Verify Signature
   const signature = req.headers["x-signature-ed25519"];
   const timestamp = req.headers["x-signature-timestamp"];
-  
-  // 3. Get the Raw Body (Crucial for verification)
   const rawBody = await getRawBody(req);
 
-  // 4. Verify the signature
-  // We pass the rawBody Buffer directly, which is safer than converting to string
   const isValidRequest = verifyKey(
     rawBody,
     signature,
@@ -33,37 +29,34 @@ const handler = async (req, res) => {
   );
 
   if (!isValidRequest) {
-    console.error("Signature verification failed.");
     return res.status(401).send("Invalid request signature");
   }
 
-  // 5. Parse the body
+  // 3. Parse Body
   const interaction = JSON.parse(rawBody.toString("utf-8"));
 
-  // 6. Handle PING (This fixes the "interactions_endpoint_url" error)
-  if (interaction.type === InteractionType.PING) {
-    console.log("PING received, sending PONG...");
-    return res.status(200).json({
-      type: InteractionResponseType.PONG,
-    });
+  // 4. PING / PONG (Hardcoded for safety)
+  if (interaction.type === 1) {
+    console.log("PING received. Returning PONG.");
+    // Directly return the raw JSON object Discord expects
+    return res.status(200).json({ type: 1 });
   }
 
-  // 7. Handle Commands (Slash commands)
-  if (interaction.type === InteractionType.APPLICATION_COMMAND) {
+  // 5. Handle Commands
+  if (interaction.type === 2) {
     return res.status(200).json({
-      type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
+      type: 4, // CHANNEL_MESSAGE_WITH_SOURCE
       data: {
-        content: "Hello! Interaction received.",
+        content: "Hello! Command received.",
       },
     });
   }
 
-  return res.status(400).json({ error: "Unknown interaction type" });
+  return res.status(400).json({ error: "Unknown type" });
 };
 
 module.exports = handler;
 
-// Important: Disable Next.js body parser so we can read raw bytes
 module.exports.config = {
   api: {
     bodyParser: false,
