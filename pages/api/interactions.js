@@ -9,9 +9,29 @@ async function getRawBody(readable) {
   return Buffer.concat(chunks);
 }
 
+function sendJson(res, status, bodyObj) {
+  const body = JSON.stringify(bodyObj);
+  res.statusCode = status;
+  res.setHeader("Content-Type", "application/json");
+  res.setHeader("Content-Length", String(Buffer.byteLength(body)));
+  res.setHeader("Cache-Control", "no-store");
+  return res.end(body);
+}
+
 module.exports = async (req, res) => {
+  // Probe-friendly
+  if (req.method === "GET") return res.end("ok");
+  if (req.method === "HEAD") return res.end();
+  if (req.method === "OPTIONS") {
+    res.statusCode = 204;
+    res.setHeader("Allow", "POST, GET, HEAD, OPTIONS");
+    res.setHeader("Cache-Control", "no-store");
+    return res.end();
+  }
+
   if (req.method !== "POST") {
     res.statusCode = 405;
+    res.setHeader("Allow", "POST, GET, HEAD, OPTIONS");
     return res.end();
   }
 
@@ -21,52 +41,45 @@ module.exports = async (req, res) => {
 
   const rawBody = await getRawBody(req);
 
-  if (!signature || !timestamp) {
-    res.statusCode = 401;
-    return res.end("Missing signature headers");
-  }
-  if (!publicKey) {
-    res.statusCode = 500;
-    return res.end("Missing DISCORD_PUBLIC_KEY");
-  }
+  if (!signature || !timestamp) return sendJson(res, 401, { error: "Missing signature headers" });
+  if (!publicKey) return sendJson(res, 500, { error: "Missing DISCORD_PUBLIC_KEY" });
 
-  // ✅ In your environment verifyKey is async -> await it
-  const isValidRequest = await verifyKey(
-    rawBody,            // Buffer is fine
-    signature,
-    timestamp,
-    publicKey
-  );
+  const isValidRequest = await verifyKey(rawBody, signature, timestamp, publicKey);
+  if (!isValidRequest) return sendJson(res, 401, { error: "Invalid request signature" });
 
-  console.log("Verification Result:", isValidRequest);
-
-  if (!isValidRequest) {
-    res.statusCode = 401;
-    return res.end("Invalid request signature");
+  let interaction;
+  try {
+    interaction = JSON.parse(rawBody.toString("utf8"));
+  } catch {
+    return sendJson(res, 400, { error: "Bad JSON" });
   }
 
-  const interaction = JSON.parse(rawBody.toString("utf8"));
-
-  // ✅ Respond to PING exactly
+  // PING -> PONG (keep exact)
   if (interaction.type === 1) {
     const body = '{"type":1}';
     res.statusCode = 200;
     res.setHeader("Content-Type", "application/json");
     res.setHeader("Content-Length", String(Buffer.byteLength(body)));
     res.setHeader("Cache-Control", "no-store");
+    res.setHeader("Content-Encoding", "identity");
     return res.end(body);
   }
 
-  const body = JSON.stringify({
-    type: 4,
-    data: { content: "Interaction verified and processed." },
-  });
+  // ---- COMMAND ROUTER (add your logic here) ----
+  // Slash commands are type 2. Component interactions are type 3.
+  if (interaction.type === 2) {
+    const name = interaction.data?.name;
 
-  res.statusCode = 200;
-  res.setHeader("Content-Type", "application/json");
-  res.setHeader("Content-Length", String(Buffer.byteLength(body)));
-  res.setHeader("Cache-Control", "no-store");
-  return res.end(body);
+    if (name === "points") {
+      // TODO: paste your points handler here (add/balance with KV)
+      return sendJson(res, 200, { type: 4, data: { content: "points command received ✅" } });
+    }
+
+    return sendJson(res, 200, { type: 4, data: { content: `Unknown command: ${name}` } });
+  }
+
+  // Default ACK for anything else
+  return sendJson(res, 200, { type: 4, data: { content: "Interaction received." } });
 };
 
 module.exports.config = {
