@@ -1,19 +1,13 @@
+// pages/api/discord.js
 const { verifyKey } = require("discord-interactions");
 
-// If you haven't added KV yet, you can comment kv out for now
+// Optional KV (safe if not configured yet)
 let kv = null;
 try {
   kv = require("@vercel/kv").kv;
 } catch (e) {
-  // KV not installed or not configured yet; ok for local testing
+  // ok if KV not installed/configured yet
 }
-
-/*
-exports.config = {
-  api: {
-    bodyParser: false, // IMPORTANT: must read raw body
-  },
-};*/
 
 function readRawBody(req) {
   return new Promise((resolve, reject) => {
@@ -24,7 +18,7 @@ function readRawBody(req) {
   });
 }
 
-function json(res, status, body) {
+function sendJson(res, status, body) {
   res.statusCode = status;
   res.setHeader("Content-Type", "application/json");
   res.end(JSON.stringify(body));
@@ -35,7 +29,7 @@ function pointsKey(guildId, userId) {
 }
 
 async function addPoints(guildId, userId, amount) {
-  if (!kv) return Number(amount); // fallback if KV not set up yet
+  if (!kv) return Number(amount); // fallback if KV not set up
   const key = pointsKey(guildId, userId);
   const current = (await kv.get(key)) ?? 0;
   const next = Number(current) + Number(amount);
@@ -44,37 +38,11 @@ async function addPoints(guildId, userId, amount) {
 }
 
 async function getPoints(guildId, userId) {
-  if (!kv) return 0; // fallback if KV not set up yet
+  if (!kv) return 0; // fallback if KV not set up
   return (await kv.get(pointsKey(guildId, userId))) ?? 0;
 }
 
-async function handler(req, res) {
-  if (req.method !== "POST") return json(res, 405, { error: "Method not allowed" });
-
-  const rawBodyBuf = await readRawBody(req);
-  const rawBody = rawBodyBuf.toString("utf8");
-
-  const signature = req.headers["x-signature-ed25519"];
-  const timestamp = req.headers["x-signature-timestamp"];
-  const publicKey = process.env.DISCORD_PUBLIC_KEY;
-
-  if (!publicKey) return json(res, 500, { error: "Missing DISCORD_PUBLIC_KEY" });
-  if (!sig || !ts) return json(res, 401, { error: "Missing signature headers" });
-
- const sig = Array.isArray(signature) ? signature[0] : signature;
-  const ts  = Array.isArray(timestamp) ? timestamp[0] : timestamp;
-
-  const isValid = verifyKey(rawBody, sig, ts, publicKey);
-
-  if (!isValid) return json(res, 401, { error: "Invalid request signature" });
-
-  const interaction = JSON.parse(rawBody);
-
-  // Discord PING
-  if (interaction.type === 1) {
-    return json(res, 200, { type: 1 });
-  }
-
+async function handleCommand(interaction, res) {
   const guildId = interaction.guild_id;
   const command = interaction.data?.name;
 
@@ -90,7 +58,7 @@ async function handler(req, res) {
 
       const next = await addPoints(guildId, user, amount);
 
-      return json(res, 200, {
+      return sendJson(res, 200, {
         type: 4,
         data: {
           content: `✅ Added **${amount}** point(s) to <@${user}>. New balance: **${next}**.${reason ? `\nReason: ${reason}` : ""}`,
@@ -100,17 +68,54 @@ async function handler(req, res) {
 
     if (subName === "balance") {
       const opts = sub.options ?? [];
-      const user = opts.find((o) => o.name === "user")?.value ?? interaction.member.user.id;
+      const user = opts.find((o) => o.name === "user")?.value ?? interaction.member?.user?.id;
       const bal = await getPoints(guildId, user);
 
-      return json(res, 200, { type: 4, data: { content: `💳 <@${user}> has **${bal}** point(s).` } });
+      return sendJson(res, 200, {
+        type: 4,
+        data: { content: `💳 <@${user}> has **${bal}** point(s).` },
+      });
     }
   }
 
-  return json(res, 200, { type: 4, data: { content: "Unknown command." } });
+  return sendJson(res, 200, { type: 4, data: { content: "Unknown command." } });
+}
+
+async function handler(req, res) {
+  if (req.method !== "POST") return sendJson(res, 405, { error: "Method not allowed" });
+
+  // Read raw bytes (critical for signature verification)
+  const rawBodyBuf = await readRawBody(req);
+  const rawBody = rawBodyBuf.toString("utf8");
+
+  // Normalize headers (Vercel can provide string[])
+  const signature = req.headers["x-signature-ed25519"];
+  const timestamp = req.headers["x-signature-timestamp"];
+  const sig = Array.isArray(signature) ? signature[0] : signature;
+  const ts = Array.isArray(timestamp) ? timestamp[0] : timestamp;
+
+  const publicKey = process.env.DISCORD_PUBLIC_KEY;
+  if (!publicKey) return sendJson(res, 500, { error: "Missing DISCORD_PUBLIC_KEY" });
+  if (!sig || !ts) return sendJson(res, 401, { error: "Missing signature headers" });
+
+  // Verify Discord signature
+  const isValid = verifyKey(rawBody, sig, ts, publicKey);
+  if (!isValid) return sendJson(res, 401, { error: "Invalid request signature" });
+
+  const interaction = JSON.parse(rawBody);
+
+  // Respond to PING immediately (Discord endpoint verification)
+  if (interaction.type === 1) {
+    return sendJson(res, 200, { type: 1 });
+  }
+
+  // Handle commands
+  return handleCommand(interaction, res);
 }
 
 module.exports = handler;
+
+// IMPORTANT: disable body parser so we can verify raw body
 module.exports.config = {
   api: { bodyParser: false },
 };
