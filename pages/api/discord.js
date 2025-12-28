@@ -57,7 +57,11 @@ async function handler(req, res) {
   const timestamp = req.headers["x-signature-timestamp"];
   const publicKey = process.env.DISCORD_PUBLIC_KEY;
 
-  const isValid = verifyKey(rawBody, signature, timestamp, publicKey);
+ const sig = Array.isArray(signature) ? signature[0] : signature;
+  const ts  = Array.isArray(timestamp) ? timestamp[0] : timestamp;
+
+  const isValid = verifyKey(rawBody, sig, ts, publicKey);
+
   if (!isValid) return json(res, 401, { error: "Invalid request signature" });
 
   const interaction = JSON.parse(rawBody);
