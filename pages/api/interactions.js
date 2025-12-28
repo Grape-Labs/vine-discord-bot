@@ -89,9 +89,12 @@ module.exports = async function handler(req, res) {
     console.log("DISCORD PING VERIFIED FOR APP:", process.env.DISCORD_PUBLIC_KEY);
     const body = '{"type":1}';
     res.statusCode = 200;
-    res.setHeader("Content-Type", "application/json; charset=utf-8");
-    res.setHeader("Content-Length", Buffer.byteLength(body));
+    res.setHeader("Content-Type", "application/json");
+    res.setHeader("Content-Length", String(Buffer.byteLength(body)));
     res.setHeader("Cache-Control", "no-store");
+    res.setHeader("Connection", "close");
+    res.setHeader("Content-Encoding", "identity");
+
     return res.end(body);
   }
 
