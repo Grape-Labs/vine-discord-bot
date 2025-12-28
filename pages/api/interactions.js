@@ -1,11 +1,12 @@
 // pages/api/interactions.js
 const { verifyKey } = require("discord-interactions");
 
-// raw body reader (required)
 function readRawBody(req) {
   return new Promise((resolve, reject) => {
     const chunks = [];
-    req.on("data", (c) => chunks.push(Buffer.isBuffer(c) ? c : Buffer.from(c)));
+    req.on("data", (c) =>
+      chunks.push(Buffer.isBuffer(c) ? c : Buffer.from(c))
+    );
     req.on("end", () => resolve(Buffer.concat(chunks)));
     req.on("error", reject);
   });
@@ -44,26 +45,32 @@ module.exports = async function handler(req, res) {
   const raw = await readRawBody(req);
   const rawText = raw.toString("utf8");
 
+  const publicKey = process.env.DISCORD_PUBLIC_KEY;
+
   const sig = req.headers["x-signature-ed25519"];
   const ts = req.headers["x-signature-timestamp"];
-  const publicKey = process.env.DISCORD_PUBLIC_KEY;
+  const sig1 = Array.isArray(sig) ? sig[0] : sig;
+  const ts1 = Array.isArray(ts) ? ts[0] : ts;
 
   if (!publicKey) {
     res.statusCode = 500;
     res.setHeader("Content-Type", "application/json; charset=utf-8");
+    res.setHeader("Cache-Control", "no-store");
     return res.end(JSON.stringify({ error: "Missing DISCORD_PUBLIC_KEY" }));
   }
 
-  if (!sig || !ts) {
+  if (!sig1 || !ts1) {
     res.statusCode = 401;
     res.setHeader("Content-Type", "application/json; charset=utf-8");
+    res.setHeader("Cache-Control", "no-store");
     return res.end(JSON.stringify({ error: "Missing signature headers" }));
   }
 
-  const ok = verifyKey(rawText, sig, ts, publicKey);
+  const ok = verifyKey(rawText, sig1, ts1, publicKey);
   if (!ok) {
     res.statusCode = 401;
     res.setHeader("Content-Type", "application/json; charset=utf-8");
+    res.setHeader("Cache-Control", "no-store");
     return res.end(JSON.stringify({ error: "Bad signature" }));
   }
 
@@ -73,22 +80,27 @@ module.exports = async function handler(req, res) {
   } catch (e) {
     res.statusCode = 400;
     res.setHeader("Content-Type", "application/json; charset=utf-8");
+    res.setHeader("Cache-Control", "no-store");
     return res.end(JSON.stringify({ error: "Bad JSON" }));
   }
 
   // ✅ Verification requires this exact response
   if (interaction.type === 1) {
+    const body = '{"type":1}';
     res.statusCode = 200;
     res.setHeader("Content-Type", "application/json; charset=utf-8");
+    res.setHeader("Content-Length", Buffer.byteLength(body));
     res.setHeader("Cache-Control", "no-store");
-    return res.end('{"type":1}');
+    return res.end(body);
   }
 
-  // For now, just ACK other interactions (after save succeeds we can route commands)
+  // ACK other interactions (we'll route commands after verification succeeds)
+  const body = JSON.stringify({ type: 4, data: { content: "ok" } });
   res.statusCode = 200;
   res.setHeader("Content-Type", "application/json; charset=utf-8");
+  res.setHeader("Content-Length", Buffer.byteLength(body));
   res.setHeader("Cache-Control", "no-store");
-  return res.end(JSON.stringify({ type: 4, data: { content: "ok" } }));
+  return res.end(body);
 };
 
 module.exports.config = {
