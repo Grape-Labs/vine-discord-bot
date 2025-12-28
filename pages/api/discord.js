@@ -12,7 +12,9 @@ try {
 function readRawBody(req) {
   return new Promise((resolve, reject) => {
     const chunks = [];
-    req.on("data", (chunk) => chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)));
+    req.on("data", (chunk) =>
+      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk))
+    );
     req.on("end", () => resolve(Buffer.concat(chunks)));
     req.on("error", reject);
   });
@@ -61,14 +63,18 @@ async function handleCommand(interaction, res) {
       return sendJson(res, 200, {
         type: 4,
         data: {
-          content: `✅ Added **${amount}** point(s) to <@${user}>. New balance: **${next}**.${reason ? `\nReason: ${reason}` : ""}`,
+          content: `✅ Added **${amount}** point(s) to <@${user}>. New balance: **${next}**.${
+            reason ? `\nReason: ${reason}` : ""
+          }`,
         },
       });
     }
 
     if (subName === "balance") {
       const opts = sub.options ?? [];
-      const user = opts.find((o) => o.name === "user")?.value ?? interaction.member?.user?.id;
+      const user =
+        opts.find((o) => o.name === "user")?.value ??
+        interaction.member?.user?.id;
       const bal = await getPoints(guildId, user);
 
       return sendJson(res, 200, {
@@ -82,11 +88,13 @@ async function handleCommand(interaction, res) {
 }
 
 async function handler(req, res) {
+  // Temporary: confirm the deployed version via browser
   if (req.method === "GET") {
     return sendJson(res, 200, { ok: true, version: "v2-2025-12-28" });
   }
-  if (req.method !== "POST") return sendJson(res, 405, { error: "Method not allowed" });
 
+  if (req.method !== "POST")
+    return sendJson(res, 405, { error: "Method not allowed" });
 
   // Read raw bytes (critical for signature verification)
   const rawBodyBuf = await readRawBody(req);
@@ -108,9 +116,23 @@ async function handler(req, res) {
 
   const interaction = JSON.parse(rawBody);
 
+  // ✅ Debug logs to see exactly what Discord is sending + what we respond with
+  console.log("Discord interaction received", {
+    type: interaction.type,
+    name: interaction.data?.name,
+  });
+
   // Respond to PING immediately (Discord endpoint verification)
   if (interaction.type === 1) {
-    return sendJson(res, 200, { type: 1 });
+    const pong = { type: 1 };
+    console.log("Responding to PING with:", pong);
+
+    // TEMP (most strict possible response): uncomment if needed
+    // res.statusCode = 200;
+    // res.setHeader("Content-Type", "application/json");
+    // return res.end('{"type":1}');
+
+    return sendJson(res, 200, pong);
   }
 
   // Handle commands
