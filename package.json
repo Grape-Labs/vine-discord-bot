@@ -8,13 +8,14 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "register:commands": "node scripts/register-command.mjs"
+    "register:commands": "node scripts/register-commands.js"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "@solana/web3.js": "^1.98.4",
     "@vercel/kv": "^3.0.0",
     "discord-interactions": "^4.4.0",
     "dotenv": "^17.2.3",
