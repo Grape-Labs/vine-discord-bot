@@ -4,9 +4,7 @@ const { verifyKey } = require("discord-interactions");
 let kv = null;
 try {
   kv = require("@vercel/kv").kv;
-} catch (_) {
-  // KV not installed/configured yet — bot will still work (non-persistent)
-}
+} catch (_) {}
 
 function readRawBody(req) {
   return new Promise((resolve, reject) => {
@@ -26,6 +24,16 @@ function sendJson(res, status, body) {
   res.setHeader("Content-Length", Buffer.byteLength(text));
   res.setHeader("Cache-Control", "no-store");
   res.end(text);
+}
+
+function sendPong(res) {
+  const body = '{"type":1}';
+  res.statusCode = 200;
+  res.setHeader("Content-Type", "application/json; charset=utf-8");
+  res.setHeader("Content-Length", Buffer.byteLength(body));
+  res.setHeader("Cache-Control", "no-store");
+  res.setHeader("Content-Encoding", "identity");
+  return res.end(body);
 }
 
 function pointsKey(guildId, userId) {
@@ -90,7 +98,7 @@ async function handlePoints(interaction, res) {
 }
 
 async function handler(req, res) {
-  // Be portal-friendly: answer preflight/probe requests cleanly
+  // Portal-friendly probes
   if (req.method === "OPTIONS" || req.method === "HEAD") {
     res.statusCode = 204;
     res.setHeader("Cache-Control", "no-store");
@@ -104,24 +112,17 @@ async function handler(req, res) {
     return res.end("Method Not Allowed");
   }
 
+  // Always read raw body first
   const rawBodyBuf = await readRawBody(req);
   const rawBody = rawBodyBuf.toString("utf8");
 
+  // Normalize headers
   const signature = req.headers["x-signature-ed25519"];
   const timestamp = req.headers["x-signature-timestamp"];
   const sig = Array.isArray(signature) ? signature[0] : signature;
   const ts = Array.isArray(timestamp) ? timestamp[0] : timestamp;
 
-  const publicKey = process.env.DISCORD_PUBLIC_KEY;
-
-  if (!publicKey) return sendJson(res, 500, { error: "Missing DISCORD_PUBLIC_KEY" });
-
-  // NOTE: return 400 (not 401) for missing headers — improves portal verification behavior
-  if (!sig || !ts) return sendJson(res, 400, { error: "Missing Discord signature headers" });
-
-  const isValid = verifyKey(rawBody, sig, ts, publicKey);
-  if (!isValid) return sendJson(res, 401, { error: "Invalid request signature" });
-
+  // Parse interaction early (needed for unsigned PING tolerance)
   let interaction;
   try {
     interaction = JSON.parse(rawBody);
@@ -129,16 +130,29 @@ async function handler(req, res) {
     return sendJson(res, 400, { error: "Invalid JSON" });
   }
 
-  // Discord PING — strict raw pong
+  // ✅ If Discord (or portal) sends an UNSIGNED PING, allow PONG only.
+  // This keeps safety: commands (type 2) still rejected without signature.
+  if ((!sig || !ts) && interaction?.type === 1) {
+    console.log("Unsigned PING received -> responding with PONG (portal tolerance)");
+    return sendPong(res);
+  }
+
+  const publicKey = process.env.DISCORD_PUBLIC_KEY;
+  if (!publicKey)
+    return sendJson(res, 500, { error: "Missing DISCORD_PUBLIC_KEY" });
+
+  if (!sig || !ts)
+    return sendJson(res, 400, { error: "Missing Discord signature headers" });
+
+  // Verify signature for everything else
+  const isValid = verifyKey(rawBody, sig, ts, publicKey);
+  if (!isValid)
+    return sendJson(res, 401, { error: "Invalid request signature" });
+
+  // Discord signed PING
   if (interaction.type === 1) {
-    const body = '{"type":1}';
     console.log("Discord PING verified -> responding with strict raw pong");
-    res.statusCode = 200;
-    res.setHeader("Content-Type", "application/json; charset=utf-8");
-    res.setHeader("Content-Length", Buffer.byteLength(body));
-    res.setHeader("Cache-Control", "no-store");
-    res.setHeader("Content-Encoding", "identity");
-    return res.end(body);
+    return sendPong(res);
   }
 
   const command = interaction.data?.name;
