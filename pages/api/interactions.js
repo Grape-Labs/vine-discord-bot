@@ -86,7 +86,8 @@ module.exports = async function handler(req, res) {
 
   // ✅ Verification requires this exact response
   if (interaction.type === 1) {
-    console.log("DISCORD PING VERIFIED FOR APP:", process.env.DISCORD_PUBLIC_KEY);
+    console.log("DISCORD PING VERIFIED FOR APP:", process.env.DISCORD_APP_ID);
+    console.log("DISCORD PING VERIFIED FOR PK:", process.env.DISCORD_PUBLIC_KEY);
     const body = '{"type":1}';
     res.statusCode = 200;
     res.setHeader("Content-Type", "application/json");
