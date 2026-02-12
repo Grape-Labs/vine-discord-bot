@@ -247,7 +247,7 @@ function AuthorityPage() {
   return (
     <>
       <Head>
-        <title>Vine Authority Setup</title>
+        <title>OG Reputation Spaces Authority Setup</title>
         <link rel="stylesheet" href="/authority.css" />
       </Head>
 
@@ -255,7 +255,7 @@ function AuthorityPage() {
         <section className="card">
           <div className="header">
             <div>
-              <p className="kicker">Vine Discord Bot</p>
+              <p className="kicker">OG Reputation Spaces Bot</p>
               <h1>Authority Setup Panel</h1>
               <p className="sub">
                 Configure per-guild Solana authority keys without posting secrets in Discord.
