@@ -1,8 +1,7 @@
 {
   "functions": {
-    "pages/api/*.js": { "maxDuration": 300 },
-    "pages/api/**/*.js": { "maxDuration": 300 },
-    "api/*.js": { "maxDuration": 300 },
-    "api/**/*.js": { "maxDuration": 300 }
+    "pages/api/interactions.js": {
+      "maxDuration": 300
+    }
   }
 }
