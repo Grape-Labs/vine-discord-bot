@@ -28,7 +28,11 @@ module.exports = async function handler(req, res) {
     return res.status(401).json({ ok: false, error: "Unauthorized" });
   }
 
-  const lock = await acquireWorkerLock(55);
+  const lockSeconds = Math.max(
+    60,
+    Math.floor(Number(process.env.AWARD_WORKER_LOCK_SECONDS || 300))
+  );
+  const lock = await acquireWorkerLock(lockSeconds);
   if (!lock.ok) {
     return res.status(200).json({ ok: true, processed: 0, skipped: "worker_locked" });
   }
