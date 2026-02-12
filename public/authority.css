@@ -1,0 +1,160 @@
+.page {
+  min-height: 100vh;
+  margin: 0;
+  padding: 28px 16px;
+  background:
+    radial-gradient(1200px 500px at 10% -10%, rgba(56, 189, 248, 0.25), transparent),
+    radial-gradient(900px 500px at 100% 0%, rgba(16, 185, 129, 0.2), transparent),
+    #0b1722;
+  color: #d7e4ee;
+  font-family: "Sora", "Avenir Next", "Segoe UI", sans-serif;
+}
+
+.card {
+  width: min(920px, 100%);
+  margin: 0 auto;
+  padding: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 16px;
+  background: linear-gradient(165deg, rgba(10, 18, 28, 0.9), rgba(6, 13, 20, 0.9));
+  box-shadow: 0 20px 70px rgba(0, 0, 0, 0.35);
+}
+
+.header {
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.kicker {
+  margin: 0 0 4px;
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #64d5ff;
+}
+
+h1 {
+  margin: 0;
+  font-size: clamp(26px, 4vw, 36px);
+  line-height: 1.1;
+  color: #f2fbff;
+}
+
+.sub {
+  margin: 10px 0 0;
+  max-width: 56ch;
+  color: #a8c0d0;
+}
+
+.sessionLine {
+  margin-top: 18px;
+  color: #c6dae7;
+}
+
+.row,
+.form {
+  margin-top: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.meta {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.meta p {
+  margin: 8px 0;
+  word-break: break-all;
+}
+
+.meta span {
+  color: #8fb4c8;
+  margin-right: 8px;
+}
+
+.current h2,
+.form h2 {
+  margin: 22px 0 6px;
+  color: #e6f4fb;
+  font-size: 20px;
+}
+
+select,
+textarea,
+input {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid #345167;
+  background: #0d1e2d;
+  color: #ecf6fc;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 14px;
+}
+
+textarea {
+  resize: vertical;
+  min-height: 90px;
+}
+
+label {
+  color: #b4cad8;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+.btn {
+  border: 1px solid #45657a;
+  border-radius: 10px;
+  background: #12283a;
+  color: #eaf4fb;
+  padding: 10px 14px;
+  cursor: pointer;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn.primary {
+  border-color: #1f9b80;
+  background: #0e4b3f;
+}
+
+.btn.danger {
+  border-color: #ba6772;
+  background: #57222b;
+}
+
+.ok {
+  margin-top: 16px;
+  color: #70f0c8;
+}
+
+.err {
+  margin-top: 16px;
+  color: #ff9aab;
+}
+
+.note {
+  color: #9cb4c5;
+  margin-top: 12px;
+}
