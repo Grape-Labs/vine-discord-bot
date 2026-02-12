@@ -28,6 +28,19 @@
   flex-wrap: wrap;
 }
 
+.brand {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.brandLogo {
+  width: 56px;
+  height: 56px;
+  border-radius: 14px;
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.35);
+}
+
 .kicker {
   margin: 0 0 4px;
   font-size: 12px;

@@ -249,17 +249,28 @@ function AuthorityPage() {
       <Head>
         <title>OG Reputation Spaces Authority Setup</title>
         <link rel="stylesheet" href="/authority.css" />
+        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+        <link rel="icon" type="image/png" href="/apple-touch-icon.png" />
       </Head>
 
       <main className="page">
         <section className="card">
           <div className="header">
-            <div>
-              <p className="kicker">OG Reputation Spaces Bot</p>
-              <h1>Authority Setup Panel</h1>
-              <p className="sub">
-                Configure per-guild Solana authority keys without posting secrets in Discord.
-              </p>
+            <div className="brand">
+              <img
+                className="brandLogo"
+                src="/apple-touch-icon.png"
+                alt="OG Reputation Spaces logo"
+                width="56"
+                height="56"
+              />
+              <div>
+                <p className="kicker">OG Reputation Spaces Bot</p>
+                <h1>Authority Setup Panel</h1>
+                <p className="sub">
+                  Configure per-guild Solana authority keys without posting secrets in Discord.
+                </p>
+              </div>
             </div>
             <div className="actions">
               {!loadingSession && !session ? (
