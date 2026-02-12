@@ -2,6 +2,15 @@
   "functions": {
     "pages/api/interactions.js": {
       "maxDuration": 300
+    },
+    "pages/api/award-worker.js": {
+      "maxDuration": 300
     }
-  }
+  },
+  "crons": [
+    {
+      "path": "/api/award-worker",
+      "schedule": "* * * * *"
+    }
+  ]
 }
