@@ -1,6 +1,6 @@
 {
   "functions": {
-    "api/web/interactions.js": {
+    "pages/api/interactions.js": {
       "maxDuration": 300
     }
   }
