@@ -1,5 +1,9 @@
 const { fetchDiscordGuilds, canManageGuild } = require("../../../lib/discord/oauth_client");
-const { getWebSession } = require("../../../lib/discord/web_auth");
+const {
+  getWebSession,
+  getSessionGuildsCache,
+  setSessionGuildsCache,
+} = require("../../../lib/discord/web_auth");
 const { getDaoIdForGuild } = require("../../../lib/discord/dao_store");
 
 module.exports = async function handler(req, res) {
@@ -13,7 +17,15 @@ module.exports = async function handler(req, res) {
     const session = await getWebSession(req);
     if (!session) return res.status(401).json({ error: "Unauthorized" });
 
-    const guilds = await fetchDiscordGuilds(session.accessToken);
+    const cached = await getSessionGuildsCache(session.sessionId);
+    const guilds = Array.isArray(cached?.guilds)
+      ? cached.guilds
+      : await fetchDiscordGuilds(session.accessToken);
+
+    if (!Array.isArray(cached?.guilds)) {
+      await setSessionGuildsCache(session.sessionId, guilds);
+    }
+
     const manageable = (guilds || []).filter(canManageGuild);
 
     const enriched = await Promise.all(

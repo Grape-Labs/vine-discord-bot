@@ -1,5 +1,9 @@
 const { fetchDiscordGuilds, canManageGuild } = require("../../../lib/discord/oauth_client");
-const { getWebSession } = require("../../../lib/discord/web_auth");
+const {
+  getWebSession,
+  getSessionGuildsCache,
+  setSessionGuildsCache,
+} = require("../../../lib/discord/web_auth");
 const {
   getSignerMetaForGuild,
   setSignerForGuild,
@@ -19,10 +23,17 @@ function bodyAsObject(req) {
   return req.body;
 }
 
-async function assertCanManageGuild(accessToken, guildId) {
+async function assertCanManageGuild(session, guildId) {
   if (!guildId) throw new Error("Missing guildId");
-  const guilds = await fetchDiscordGuilds(accessToken);
-  const hit = (guilds || []).find((g) => String(g.id) === String(guildId));
+
+  const cached = await getSessionGuildsCache(session.sessionId);
+  let hit = (cached?.guilds || []).find((g) => String(g.id) === String(guildId));
+  if (hit && canManageGuild(hit)) return;
+
+  const guilds = await fetchDiscordGuilds(session.accessToken);
+  await setSessionGuildsCache(session.sessionId, guilds);
+
+  hit = (guilds || []).find((g) => String(g.id) === String(guildId));
   if (!hit) throw new Error("You are not a member of that guild.");
   if (!canManageGuild(hit)) {
     throw new Error("You need Manage Server or Administrator in that guild.");
@@ -36,7 +47,7 @@ module.exports = async function handler(req, res) {
 
     if (req.method === "GET") {
       const guildId = req.query?.guildId;
-      await assertCanManageGuild(session.accessToken, guildId);
+      await assertCanManageGuild(session, guildId);
 
       const [meta, daoId] = await Promise.all([
         getSignerMetaForGuild(guildId),
@@ -53,7 +64,7 @@ module.exports = async function handler(req, res) {
     if (req.method === "POST") {
       const body = bodyAsObject(req);
       const guildId = body.guildId;
-      await assertCanManageGuild(session.accessToken, guildId);
+      await assertCanManageGuild(session, guildId);
 
       const authoritySecret = body.authoritySecret;
       const payerSecret = body.payerSecret || null;
@@ -80,7 +91,7 @@ module.exports = async function handler(req, res) {
     if (req.method === "DELETE") {
       const body = bodyAsObject(req);
       const guildId = body.guildId;
-      await assertCanManageGuild(session.accessToken, guildId);
+      await assertCanManageGuild(session, guildId);
 
       await clearSignerForGuild(guildId);
       return res.status(200).json({ ok: true, guildId: String(guildId) });
