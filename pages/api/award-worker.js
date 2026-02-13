@@ -30,10 +30,11 @@ module.exports = async function handler(req, res) {
 
   const lockSeconds = Math.max(
     60,
-    Math.floor(Number(process.env.AWARD_WORKER_LOCK_SECONDS || 300))
+    Math.floor(Number(process.env.AWARD_WORKER_LOCK_SECONDS || 60))
   );
   const lock = await acquireWorkerLock(lockSeconds);
   if (!lock.ok) {
+    console.log("award-worker: skipped (worker_locked)");
     return res.status(200).json({ ok: true, processed: 0, skipped: "worker_locked" });
   }
 
@@ -46,19 +47,25 @@ module.exports = async function handler(req, res) {
 
     for (let i = 0; i < maxJobs; i += 1) {
       const job = await popAwardJob();
-      if (!job) break;
+      if (!job) {
+        console.log("award-worker: no queued job");
+        break;
+      }
 
       last = { id: job.id, threadId: job.threadId, day: job.day };
+      console.log("award-worker: picked job", last);
 
       try {
         const alreadyDone = await hasAwardDone(job.threadId, job.day);
         if (alreadyDone) {
+          console.log("award-worker: skipping already_done", last);
           await releaseDedupe(job.threadId, job.day);
           continue;
         }
 
         const out = await runAwardParticipationJob(job);
         processed += 1;
+        console.log("award-worker: job result", { ...last, status: out?.status, ok: out?.ok });
 
         if (out?.ok && out?.status === "completed") {
           await markAwardDone(job.threadId, job.day);
