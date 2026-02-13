@@ -12,7 +12,7 @@ function isAuthorized(req) {
   // Vercel Cron calls include this header.
   if (req.headers["x-vercel-cron"]) return true;
 
-  const secret = process.env.AWARD_WORKER_SECRET;
+  const secret = process.env.AWARD_WORKER_SECRET || process.env.DISCORD_BOT_TOKEN;
   if (!secret) return false;
 
   const auth = req.headers.authorization || "";
