@@ -12,11 +12,20 @@ function isAuthorized(req) {
   // Vercel Cron calls include this header.
   if (req.headers["x-vercel-cron"]) return true;
 
-  const secret = process.env.AWARD_WORKER_SECRET || process.env.DISCORD_BOT_TOKEN;
-  if (!secret) return false;
+  const auth = String(req.headers.authorization || "");
+  const bearer = auth.startsWith("Bearer ") ? auth.slice("Bearer ".length).trim() : "";
+  const allowedSecrets = [
+    process.env.AWARD_WORKER_SECRET,
+    process.env.CRON_SECRET,
+    process.env.DISCORD_BOT_TOKEN,
+  ].filter(Boolean);
+  if (bearer && allowedSecrets.includes(bearer)) return true;
 
-  const auth = req.headers.authorization || "";
-  return auth === `Bearer ${secret}`;
+  // Fallback for cron variants that don't forward x-vercel-cron.
+  const ua = String(req.headers["user-agent"] || "").toLowerCase();
+  if (req.method === "GET" && ua.includes("vercel-cron")) return true;
+
+  return false;
 }
 
 module.exports = async function handler(req, res) {
