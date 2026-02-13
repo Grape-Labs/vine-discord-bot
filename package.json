@@ -1,7 +1,7 @@
 {
   "name": "vine-discord-bot",
   "version": "1.1.1",
-  "description": "",
+  "description": "The OG Discord Bot",
   "main": "index.js",
   "private": true,
   "scripts": {
